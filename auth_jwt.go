@@ -39,8 +39,6 @@ type GinJWTMiddleware struct {
 
 	// Duration that a jwt token is valid. Optional, defaults to one hour.
 	Timeout time.Duration
-	// Callback function that will override the default timeout duration.
-	TimeoutFunc func(data interface{}) time.Duration
 
 	// This field allows clients to refresh their token until MaxRefresh has passed.
 	// Note that clients can refresh their token in the last moment of MaxRefresh.
@@ -157,9 +155,6 @@ type GinJWTMiddleware struct {
 
 	// ParseOptions allow to modify jwt's parser methods
 	ParseOptions []jwt.ParserOption
-
-	// Default vaule is "exp"
-	ExpField string
 }
 
 var (
@@ -318,12 +313,6 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 		mw.Timeout = time.Hour
 	}
 
-	if mw.TimeoutFunc == nil {
-		mw.TimeoutFunc = func(data interface{}) time.Duration {
-			return mw.Timeout
-		}
-	}
-
 	if mw.TimeFunc == nil {
 		mw.TimeFunc = time.Now
 	}
@@ -405,10 +394,6 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 		mw.CookieName = "jwt"
 	}
 
-	if mw.ExpField == "" {
-		mw.ExpField = "exp"
-	}
-
 	// bypass other key settings if KeyFunc is set
 	if mw.KeyFunc != nil {
 		return nil
@@ -421,7 +406,6 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 	if mw.Key == nil {
 		return ErrMissingSecretKey
 	}
-
 	return nil
 }
 
@@ -439,7 +423,7 @@ func (mw *GinJWTMiddleware) middlewareImpl(c *gin.Context) {
 		return
 	}
 
-	switch v := claims[mw.ExpField].(type) {
+	switch v := claims["exp"].(type) {
 	case nil:
 		mw.unauthorized(c, http.StatusBadRequest, mw.HTTPStatusMessageFunc(ErrMissingExpField, c))
 		return
@@ -524,8 +508,8 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 		}
 	}
 
-	expire := mw.TimeFunc().Add(mw.TimeoutFunc(claims))
-	claims[mw.ExpField] = expire.Unix()
+	expire := mw.TimeFunc().Add(mw.Timeout)
+	claims["exp"] = expire.Unix()
 	claims["orig_iat"] = mw.TimeFunc().Unix()
 	tokenString, err := mw.signedString(token)
 	if err != nil {
@@ -533,7 +517,25 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	mw.SetCookie(c, tokenString)
+	// set cookie
+	if mw.SendCookie {
+		expireCookie := mw.TimeFunc().Add(mw.CookieMaxAge)
+		maxage := int(expireCookie.Unix() - mw.TimeFunc().Unix())
+
+		if mw.CookieSameSite != 0 {
+			c.SetSameSite(mw.CookieSameSite)
+		}
+
+		c.SetCookie(
+			mw.CookieName,
+			tokenString,
+			maxage,
+			"/",
+			mw.CookieDomain,
+			mw.SecureCookie,
+			mw.CookieHTTPOnly,
+		)
+	}
 
 	mw.LoginResponse(c, http.StatusOK, tokenString, expire)
 }
@@ -599,15 +601,33 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 		newClaims[key] = claims[key]
 	}
 
-	expire := mw.TimeFunc().Add(mw.TimeoutFunc(claims))
-	newClaims[mw.ExpField] = expire.Unix()
+	expire := mw.TimeFunc().Add(mw.Timeout)
+	newClaims["exp"] = expire.Unix()
 	newClaims["orig_iat"] = mw.TimeFunc().Unix()
 	tokenString, err := mw.signedString(newToken)
 	if err != nil {
 		return "", time.Now(), err
 	}
 
-	mw.SetCookie(c, tokenString)
+	// set cookie
+	if mw.SendCookie {
+		expireCookie := mw.TimeFunc().Add(mw.CookieMaxAge)
+		maxage := int(expireCookie.Unix() - time.Now().Unix())
+
+		if mw.CookieSameSite != 0 {
+			c.SetSameSite(mw.CookieSameSite)
+		}
+
+		c.SetCookie(
+			mw.CookieName,
+			tokenString,
+			maxage,
+			"/",
+			mw.CookieDomain,
+			mw.SecureCookie,
+			mw.CookieHTTPOnly,
+		)
+	}
 
 	return tokenString, expire, nil
 }
@@ -649,8 +669,8 @@ func (mw *GinJWTMiddleware) TokenGenerator(data interface{}) (string, time.Time,
 		}
 	}
 
-	expire := mw.TimeFunc().Add(mw.TimeoutFunc(claims))
-	claims[mw.ExpField] = expire.Unix()
+	expire := mw.TimeFunc().Add(mw.Timeout)
+	claims["exp"] = expire.Unix()
 	claims["orig_iat"] = mw.TimeFunc().Unix()
 	tokenString, err := mw.signedString(token)
 	if err != nil {
@@ -824,27 +844,4 @@ func GetToken(c *gin.Context) string {
 	}
 
 	return token.(string)
-}
-
-// SetCookie help to set the token in the cookie
-func (mw *GinJWTMiddleware) SetCookie(c *gin.Context, token string) {
-	// set cookie
-	if mw.SendCookie {
-		expireCookie := mw.TimeFunc().Add(mw.CookieMaxAge)
-		maxage := int(expireCookie.Unix() - mw.TimeFunc().Unix())
-
-		if mw.CookieSameSite != 0 {
-			c.SetSameSite(mw.CookieSameSite)
-		}
-
-		c.SetCookie(
-			mw.CookieName,
-			token,
-			maxage,
-			"/",
-			mw.CookieDomain,
-			mw.SecureCookie,
-			mw.CookieHTTPOnly,
-		)
-	}
 }
