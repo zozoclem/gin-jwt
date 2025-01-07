@@ -8,6 +8,7 @@ import (
 	"github.com/mariusmorel/api-auth/repositories/dba"
 	systemRepository "github.com/mariusmorel/api-auth/repositories/system"
 	"github.com/mssola/user_agent"
+	"log"
 	"net/http"
 	"os"
 	"reflect"
@@ -625,6 +626,7 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 	}
 
 	for key := range claims {
+		log.Println(key, claims[key])
 		newClaims[key] = claims[key]
 	}
 
