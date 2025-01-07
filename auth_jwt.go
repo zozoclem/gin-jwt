@@ -4,8 +4,13 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
+	systemModel "github.com/mariusmorel/api-auth/models/system"
+	"github.com/mariusmorel/api-auth/repositories/dba"
+	systemRepository "github.com/mariusmorel/api-auth/repositories/system"
+	"github.com/mssola/user_agent"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -596,6 +601,28 @@ func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) (string, time.Time, err
 	// Create the token
 	newToken := jwt.New(jwt.GetSigningMethod(mw.SigningAlgorithm))
 	newClaims := newToken.Claims.(jwt.MapClaims)
+
+	userName := claims["identityKey"].(string)
+	usingApp := claims["usingApp"].(string)
+
+	if usingApp != "" && userName != "" {
+		dataAccess := dba.NewDatabaseAccess()
+
+		appRepo := systemRepository.NewApplicationRepository(dataAccess, dataAccess.NewQueryContext(reflect.TypeOf(systemModel.Application{})))
+
+		app, _ := appRepo.FindOneByApplicationName(usingApp)
+
+		userRepository := systemRepository.NewUserRepository(dataAccess, dataAccess.NewQueryContext(reflect.TypeOf(systemModel.User{})))
+		user, _ := userRepository.FindOneByUsername(userName)
+
+		ua := user_agent.New(c.Request.UserAgent())
+
+		queryContext := dataAccess.NewQueryContext(reflect.TypeOf(systemModel.UserLog{}))
+		userLogRepo := systemRepository.NewUserLogRepository(dataAccess, queryContext)
+
+		Userlog, _ := userLogRepo.CreateUserLog(ua, app, user)
+		claims["userLog"] = Userlog.ID
+	}
 
 	for key := range claims {
 		newClaims[key] = claims[key]
