@@ -1,6 +1,6 @@
 module github.com/appleboy/gin-jwt/v2
 
-go 1.21.0
+go 1.18.0
 
 require (
 	github.com/appleboy/gofight/v2 v2.1.2
