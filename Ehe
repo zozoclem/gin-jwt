@@ -1,0 +1,126 @@
+import { CommonModule, DatePipe } from '@angular/common';
+import { Component, computed, signal } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+
+type Platform = 'android' | 'ios';
+type AccessRight = 'READ' | 'WRITE' | 'ADMIN';
+
+interface PackageRow {
+  id: number;
+  name: string;
+  identifier: string;     // package/bundle id (si tu l’as)
+  version: string;
+  platform: Platform;
+  createdBy: string;
+  downloads: number;
+  accessRight: AccessRight;      // ACCESS_ENTRIES.access_right
+  groups: string[];              // groups ayant accès via ACCESS_ENTRIES security_type=GROUP
+  updatedAt: string;             // ISO
+}
+
+@Component({
+  selector: 'app-mes-paquets',
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule, DatePipe],
+  templateUrl: './mes-paquets.page.html',
+  styleUrl: './mes-paquets.page.css',
+})
+export class MesPaquetsPage {
+  // UI
+  userMenuOpen = signal(false);
+  rowMenuFor = signal<number | null>(null);
+
+  // Filters
+  q = new FormControl('', { nonNullable: true });
+  platform = new FormControl<'all' | Platform>('all', { nonNullable: true });
+  access = new FormControl<'all' | AccessRight>('all', { nonNullable: true });
+  group = new FormControl<'all' | string>('all', { nonNullable: true });
+
+  // Mock data (remplace par ton API)
+  rows = signal<PackageRow[]>([
+    {
+      id: 1,
+      name: 'Mon App Pro',
+      identifier: 'com.acme.monapp',
+      version: '1.4.2 (42)',
+      platform: 'android',
+      createdBy: 'Romain Dupont',
+      downloads: 1540,
+      accessRight: 'ADMIN',
+      groups: ['Équipe Projet A'],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 2,
+      name: 'Mon App iOS',
+      identifier: 'com.acme.monapp.ios',
+      version: '2.0.0 (10)',
+      platform: 'ios',
+      createdBy: 'Paul Lefevre',
+      downloads: 12,
+      accessRight: 'WRITE',
+      groups: ['Privé'],
+      updatedAt: new Date(Date.now() - 86400000).toISOString(),
+    },
+    {
+      id: 3,
+      name: 'App QA',
+      identifier: 'com.acme.qa',
+      version: '0.9.1 (9)',
+      platform: 'android',
+      createdBy: 'Romain Dupont',
+      downloads: 0,
+      accessRight: 'READ',
+      groups: ['Équipe QA'],
+      updatedAt: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ]);
+
+  allGroups = computed(() => {
+    const s = new Set<string>();
+    this.rows().forEach(r => r.groups.forEach(g => s.add(g)));
+    return Array.from(s).sort();
+  });
+
+  filtered = computed(() => {
+    const q = this.q.value.trim().toLowerCase();
+    const p = this.platform.value;
+    const a = this.access.value;
+    const g = this.group.value;
+
+    let list = this.rows();
+
+    if (p !== 'all') list = list.filter(x => x.platform === p);
+    if (a !== 'all') list = list.filter(x => x.accessRight === a);
+    if (g !== 'all') list = list.filter(x => x.groups.includes(g));
+
+    if (q) {
+      list = list.filter(x =>
+        [x.name, x.identifier, x.version, x.createdBy].some(v => v.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  });
+
+  toggleUserMenu() {
+    this.userMenuOpen.set(!this.userMenuOpen());
+  }
+  closeMenus() {
+    this.userMenuOpen.set(false);
+    this.rowMenuFor.set(null);
+  }
+  toggleRowMenu(id: number) {
+    this.rowMenuFor.set(this.rowMenuFor() === id ? null : id);
+  }
+
+  // Actions (stub)
+  upload() { alert('Upload (à brancher)'); }
+  download(row: PackageRow) { alert(`Télécharger ${row.name}`); }
+  copyLink(row: PackageRow) { navigator.clipboard.writeText(`https://download/signed/${row.id}`); }
+  admin() { alert('Administration'); }
+  logout() { alert('Déconnexion'); }
+
+  badgeClass(a: AccessRight) {
+    return a === 'ADMIN' ? 'badge admin' : a === 'WRITE' ? 'badge write' : 'badge read';
+  }
+}
