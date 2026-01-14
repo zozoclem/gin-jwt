@@ -1,0 +1,157 @@
+<div class="layout" (click)="closeMenus()">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" (click)="$event.stopPropagation()">
+    <div class="brand">
+      <div class="logo">P</div>
+      <div class="brand-text">
+        <div class="brand-name">Private Store</div>
+        <div class="brand-sub">Web app</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="nav-item active" href="javascript:void(0)">
+        <span class="ico">📦</span><span>Mes paquets</span>
+      </a>
+      <a class="nav-item" href="javascript:void(0)">
+        <span class="ico">👥</span><span>Mes groupes</span>
+      </a>
+      <a class="nav-item" href="javascript:void(0)">
+        <span class="ico">👤</span><span>Profil</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-mini">
+        <div class="avatar">RD</div>
+        <div>
+          <div class="u-name">Romain Dupont</div>
+          <div class="u-role">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" (click)="$event.stopPropagation()">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div>
+        <h1>Mes paquets</h1>
+        <p class="sub">Visibilité basée sur vos <b>ACCESS_ENTRIES</b> (READ/WRITE/ADMIN) et vos groupes.</p>
+      </div>
+
+      <div class="top-actions">
+        <button class="btn primary" (click)="upload()">+ Déposer un paquet</button>
+
+        <button class="user-chip" (click)="toggleUserMenu()">
+          <span class="avatar sm">RD</span>
+          <span>Romain Dupont</span>
+          <span class="caret">▾</span>
+        </button>
+
+        <div class="menu user-menu" *ngIf="userMenuOpen()">
+          <button (click)="admin()">⚙️ Administration</button>
+          <button class="danger" (click)="logout()">⎋ Se déconnecter</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- FILTERS -->
+    <section class="filters card">
+      <div class="field search">
+        <span class="hint-ico">🔎</span>
+        <input class="input" placeholder="Rechercher (nom, identifiant, version, créateur)"
+               [formControl]="q">
+      </div>
+
+      <div class="field">
+        <label>Plateforme</label>
+        <select class="select" [formControl]="platform">
+          <option value="all">Toutes</option>
+          <option value="android">Android</option>
+          <option value="ios">iOS</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Accès</label>
+        <select class="select" [formControl]="access">
+          <option value="all">Tous</option>
+          <option value="READ">READ</option>
+          <option value="WRITE">WRITE</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Groupes</label>
+        <select class="select" [formControl]="group">
+          <option value="all">Tous</option>
+          <option *ngFor="let g of allGroups()" [value]="g">{{ g }}</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- TABLE -->
+    <section class="card table-wrap">
+      <div class="table-head">
+        <div class="count">{{ filtered().length }} paquet(s)</div>
+      </div>
+
+      <div class="table">
+        <div class="trow thead">
+          <div>Paquet</div>
+          <div>Version</div>
+          <div>Créé par</div>
+          <div class="right">Téléchargements</div>
+          <div>Accès</div>
+          <div>Groupes</div>
+          <div class="right">Actions</div>
+        </div>
+
+        <div class="trow" *ngFor="let r of filtered()">
+          <div class="pkg">
+            <div class="appicon">{{ r.platform === 'android' ? '🤖' : '' }}</div>
+            <div>
+              <div class="pkg-name">{{ r.name }}</div>
+              <div class="pkg-sub mono">{{ r.identifier }}</div>
+            </div>
+          </div>
+
+          <div class="mono">{{ r.version }}</div>
+
+          <div class="creator">
+            <span class="avatar sm">{{ r.createdBy.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase() }}</span>
+            <span>{{ r.createdBy }}</span>
+          </div>
+
+          <div class="right mono">{{ r.downloads }}</div>
+
+          <div><span [class]="badgeClass(r.accessRight)">{{ r.accessRight }}</span></div>
+
+          <div class="chips">
+            <span class="chip" *ngFor="let g of r.groups">{{ g }}</span>
+          </div>
+
+          <div class="right actions" (click)="$event.stopPropagation()">
+            <button class="btn ghost" (click)="toggleRowMenu(r.id)">⋯</button>
+            <div class="menu row-menu" *ngIf="rowMenuFor() === r.id">
+              <button (click)="download(r)">⬇️ Télécharger</button>
+              <button (click)="copyLink(r)">🔗 Copier lien</button>
+              <div class="sep"></div>
+              <button *ngIf="r.accessRight === 'ADMIN'" (click)="admin()">⚙️ Gérer accès</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty" *ngIf="filtered().length === 0">
+          Aucun package visible (vérifie tes droits / groupes).
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
