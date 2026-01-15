@@ -1,0 +1,58 @@
+@startuml
+title Store privé - Upload & publication d'un paquet (APK/IPA)
+
+actor "Utilisateur" as U
+participant "Store Privé" as SP
+participant "Serveur (stockage)" as S
+database "Base de Données" as DB
+actor "Utilisateurs autorisés" as UA
+
+== Dépôt du paquet ==
+U -> SP: Déposer le paquet (APK/IPA)
+activate SP
+
+SP -> SP: Valider le fichier (type, taille, checksum, signature)
+alt Fichier invalide
+  SP --> U: Refuser (erreur de validation)
+  deactivate SP
+  stop
+else Fichier valide
+  SP -> SP: Extraire & analyser le manifest\n(package/bundle id, version, etc.)
+
+  SP -> S: Stocker le fichier (APK/IPA)
+  activate S
+  S --> SP: OK + chemin/clé objet
+  deactivate S
+
+  SP -> S: Générer une URL signée de téléchargement
+  activate S
+  S --> SP: URL signée (TTL)
+  deactivate S
+
+  SP -> DB: Enregistrer infos paquet\n(manifest + url + created_by + file_name + size)
+  activate DB
+  DB --> SP: OK (package_id)
+  deactivate DB
+end
+
+== Consultation / téléchargement ==
+UA -> SP: Lister les paquets
+SP -> DB: Récupérer paquets visibles\n(selon droits user/group)
+DB --> SP: Liste filtrée
+
+SP --> UA: Afficher les paquets autorisés
+
+UA -> SP: Ouvrir fiche paquet / Télécharger
+SP -> DB: Vérifier droits d'accès\n(ACCESS_ENTRIES user/group + access_right)
+DB --> SP: Autorisé ? (READ/WRITE/ADMIN)
+
+alt Accès autorisé
+  SP -> S: Obtenir/renouveler URL signée
+  S --> SP: URL signée
+  SP --> UA: Rediriger vers la page de téléchargement / URL
+else Accès non autorisé
+  SP --> UA: Paquet masqué (non listé) / accès refusé
+end
+
+deactivate SP
+@enduml
